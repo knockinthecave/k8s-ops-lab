@@ -51,6 +51,12 @@ kubectl delete -f apps/podinfo/
 kind delete cluster
 ```
 
+## 실습 기록
+
+| 번호 | 주제 | 문서 |
+| --- | --- | --- |
+| 01 | 안정성 기본기 (probe, resources, 롤링 업데이트) | [docs/labs/01-stability.md](docs/labs/01-stability.md) |
+
 ## 브랜치 규칙
 
 `main`은 항상 동작하는 상태로 유지하고, 변경은 `feat/*` 브랜치에서 작업한 뒤 PR로 머지합니다.
