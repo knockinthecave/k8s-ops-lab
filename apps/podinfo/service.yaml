@@ -1,0 +1,17 @@
+# API 그룹/버전: Service는 core(v1) 그룹에 속함
+apiVersion: v1
+# 리소스 종류: 파드 집합에 안정적인 네트워크 엔드포인트(고정 IP/DNS)를 제공
+kind: Service
+metadata:
+  # Service 이름 (클러스터 내부 DNS: podinfo.<namespace>.svc)
+  name: podinfo
+spec:
+  # 트래픽을 전달할 파드를 라벨로 선택 (Deployment의 파드 라벨과 일치)
+  # type 미지정 -> 기본값 ClusterIP (클러스터 내부 전용)
+  selector:
+    app: podinfo
+  ports:
+    # Service가 노출하는 포트 (클라이언트가 접속하는 포트)
+    - port: 9898
+      # 파드로 전달할 포트 (Deployment에서 이름 붙인 "http" = 9898)
+      targetPort: http
