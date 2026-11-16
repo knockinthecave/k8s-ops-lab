@@ -7,11 +7,15 @@
 ```
 .
 ├── cluster/
-│   └── kind.yml              # kind 클러스터 설정 (control-plane 1 + worker 3)
+│   └── kind.yaml             # kind 클러스터 설정 (control-plane 1 + worker 3)
 ├── apps/
 │   └── podinfo/
 │       ├── deployment.yaml   # podinfo 파드 3개를 선언적으로 관리
 │       └── service.yaml      # 파드에 접근하는 ClusterIP 서비스 (9898)
+├── monitoring/
+│   ├── metrics-server-values.yaml        # metrics-server helm values
+│   ├── kube-prometheus-stack-values.yaml # Prometheus/Grafana/Alertmanager helm values
+│   └── podinfo-servicemonitor.yaml       # podinfo 메트릭 수집 대상 등록 (ServiceMonitor CR)
 ├── labs/
 │   └── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
 └── docs/labs/                # 실습 기록
@@ -23,7 +27,7 @@
 
 | 파일 | 설명 |
 | --- | --- |
-| `cluster/kind.yml` | kind 클러스터 구성. 쿠버네티스 리소스가 아니라 kind가 읽는 설정 파일 |
+| `cluster/kind.yaml` | kind 클러스터 구성. 쿠버네티스 리소스가 아니라 kind가 읽는 설정 파일 |
 | `apps/podinfo/deployment.yaml` | podinfo `6.17.0` 이미지, 복제본 3개 유지 |
 | `apps/podinfo/service.yaml` | 라벨 `app: podinfo` 파드로 트래픽 전달, 포트 `9898` |
 
@@ -37,7 +41,7 @@
 
 ```bash
 # 1. 클러스터 생성
-kind create cluster --config cluster/kind.yml
+kind create cluster --config cluster/kind.yaml
 
 # 2. 앱 배포
 kubectl apply -f apps/podinfo/
@@ -60,6 +64,14 @@ kind delete cluster
 | --- | --- | --- |
 | 01 | 안정성 기본기 (probe, resources, 롤링 업데이트) | [docs/labs/01-stability.md](docs/labs/01-stability.md) |
 | 02 | 장애 재현 (liveness, OOMKilled, CPU throttling) | [docs/labs/02-failure-injection.md](docs/labs/02-failure-injection.md) |
+| 03 | 메트릭 수집과 대시보드 (metrics-server, kube-prometheus-stack) | [docs/labs/03-monitoring.md](docs/labs/03-monitoring.md) |
+
+## 참고 문서
+
+| 문서 | 설명 |
+| --- | --- |
+| [docs/helm-cheatsheet.md](docs/helm-cheatsheet.md) | Helm 개념과 명령어 정리 |
+| [plans/devops-sre-roadmap.md](plans/devops-sre-roadmap.md) | DevOps/SRE 실습 로드맵 |
 
 ## 브랜치 규칙
 

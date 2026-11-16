@@ -5,6 +5,9 @@ kind: Service
 metadata:
   # Service 이름 (클러스터 내부 DNS: podinfo.<namespace>.svc)
   name: podinfo
+  # Service 자체에 붙는 라벨. ServiceMonitor가 이 라벨로 수집 대상 Service를 찾음
+  labels:
+    app: podinfo
 spec:
   # 트래픽을 전달할 파드를 라벨로 선택 (Deployment의 파드 라벨과 일치)
   # type 미지정 -> 기본값 ClusterIP (클러스터 내부 전용)
@@ -12,6 +15,8 @@ spec:
     app: podinfo
   ports:
     # Service가 노출하는 포트 (클라이언트가 접속하는 포트)
-    - port: 9898
+    # 포트 이름. ServiceMonitor의 endpoints.port가 이 이름으로 포트를 지정함
+    - name: http
+      port: 9898
       # 파드로 전달할 포트 (Deployment에서 이름 붙인 "http" = 9898)
       targetPort: http

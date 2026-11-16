@@ -1,0 +1,14 @@
+# metrics-server (helm chart 3.14.0)
+# kubectl top, HPA가 사용하는 Metrics API를 제공한다.
+#
+# kind의 kubelet은 자체 서명 인증서를 쓰므로 TLS 검증을 끄는 옵션이 필요하다.
+# 로컬 실습 전용 설정이며, 운영 클러스터에서는 사용하지 않는다.
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP,Hostname
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

@@ -1,0 +1,27 @@
+# API 그룹/버전: ServiceMonitor는 prometheus-operator가 설치한 CRD
+apiVersion: monitoring.coreos.com/v1
+# 리소스 종류: "이 Service의 파드들을 Prometheus가 수집하라"는 선언
+kind: ServiceMonitor
+metadata:
+  name: podinfo
+  # podinfo와 같은 네임스페이스(default)에 둔다.
+  # kube-prometheus-stack-values.yaml에서 serviceMonitorSelectorNilUsesHelmValues: false로
+  # 두었으므로 release 라벨 없이도 Prometheus가 읽는다.
+  labels:
+    app: podinfo
+spec:
+  # 수집 대상 Service를 라벨로 선택 (apps/podinfo/service.yaml의 metadata.labels와 일치)
+  selector:
+    matchLabels:
+      app: podinfo
+  # Service가 있는 네임스페이스. 지정하지 않으면 ServiceMonitor와 같은 네임스페이스
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    # Service의 포트 이름 (apps/podinfo/service.yaml의 ports[].name)
+    - port: http
+      # 메트릭 경로 (기본값 /metrics)
+      path: /metrics
+      # 수집 주기
+      interval: 15s
