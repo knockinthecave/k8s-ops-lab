@@ -55,15 +55,42 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
-          # startupProbe: 기동 완료 확인. 성공 전까지 liveness/readiness 유예
-          # (최대 failureThreshold x periodSeconds = 30초)
+          # ---------------------------------------------------------------
+          # probe 공통 개념 (kubelet이 컨테이너 안의 앱을 주기적으로 찔러 봄)
+          #   periodSeconds    : 몇 초마다 검사할지 (검사 간격)
+          #   timeoutSeconds   : 검사 1회가 응답을 기다리는 최대 시간. 초과하면 실패 1회
+          #                      (생략 시 기본값 1초)
+          #   failureThreshold : 연속 몇 번 실패하면 조치할지. 중간에 성공하면 카운트 리셋
+          #   successThreshold : 연속 몇 번 성공해야 성공으로 볼지 (생략 시 기본값 1)
+          #   - httpGet은 응답 코드가 200~399면 성공. 503 같은 응답이나 연결 거부는 즉시 실패
+          #   - 판정까지 걸리는 시간은 대략 periodSeconds x failureThreshold
+          #     (문제 발생 직후 첫 검사까지 최대 periodSeconds만큼 더 기다릴 수 있음)
+          #   - 실패 시 조치가 probe마다 다름: startup/liveness는 재시작, readiness는 트래픽 차단
+          #
+          # 실행 순서:
+          #   컨테이너 시작 -> startupProbe 성공 -> liveness, readiness가 동시에 각자 독립적으로 시작
+          #   컨테이너가 재시작되면 이 과정을 처음부터 다시 거침
+          # ---------------------------------------------------------------
+
+          # startupProbe: 기동 완료 확인. 성공하기 전까지 liveness/readiness를 유예
+          # - 컨테이너 시작 직후부터 처음 성공할 때까지만 돌고, 성공하면 종료 (이후 다시 돌지 않음)
+          # - 기동이 느린 앱이 liveness에 걸려 뜨다가 죽는 것을 막기 위함
+          # - 이 설정: 1초마다 검사, 연속 30번 실패하면 컨테이너 재시작
+          #   (= 30초 안에 못 뜨면 기동 실패. 기동이 오래 걸리는 앱은 period x threshold를 늘림)
+          # - timeoutSeconds 생략 -> 기본값 1초 적용
+          # - 짧게만 도는 probe라서 1초 간격이어도 부하 부담이 적음
           startupProbe:
             httpGet:
               path: /healthz
               port: http
             periodSeconds: 1
             failureThreshold: 30
-          # livenessProbe: 실패하면 컨테이너를 재시작 (죽은 앱 복구)
+          # livenessProbe: "이 컨테이너가 복구 불가능하게 망가졌는가" 판단. 실패하면 컨테이너 재시작
+          # - startup 성공 후부터 컨테이너가 살아 있는 동안 계속 돔
+          # - 이 설정: 10초마다 검사, 1회 최대 2초 대기, 연속 3번 실패하면 재시작 (약 20~30초)
+          # - 재시작은 파드 재생성이 아니라 같은 파드 안의 컨테이너만 다시 띄우는 것 (RESTARTS 증가)
+          # - 일부러 느슨하게 둠: 일시적인 지연에도 재시작되는 오탐을 줄이기 위함 (threshold 1은 위험)
+          # - 가볍게 유지: DB 같은 외부 의존성을 검사하면 의존성 장애 때 모든 파드가 동시에 재시작됨
           livenessProbe:
             httpGet:
               path: /healthz
@@ -71,7 +98,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
-          # readinessProbe: 실패하면 Service 엔드포인트에서 제외 (트래픽 차단, 재시작 X)
+          # readinessProbe: "지금 트래픽을 받아도 되는가" 판단. 실패하면 Service 엔드포인트에서 제외 (재시작 X)
+          # - startup 성공 후부터 계속 돔. 한 번 Ready가 된 뒤에도 계속 검사하며, 나중에 실패하면 다시 NotReady
+          # - 이 설정: 5초마다 검사, 1회 최대 2초 대기, 연속 3번 실패하면 NotReady (약 10~15초)
+          # - NotReady가 되면 READY 0/1로 표시되고 트래픽만 끊김. 검사는 계속되어 성공하면 자동 복귀
+          # - 롤링 업데이트의 핵심: 새 파드가 Ready가 되어야 기존 파드를 내림 (maxUnavailable: 0과 함께 무중단 보장)
+          # - liveness보다 짧은 주기: 트래픽에서는 빨리 빼고 빨리 되돌리고, 재시작은 신중하게 하기 위함
+          # - liveness와 다른 경로(/readyz)를 봄: 한쪽만 실패하는 상황을 구분하기 위함
           readinessProbe:
             httpGet:
               path: /readyz
