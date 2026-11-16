@@ -1,0 +1,182 @@
+apiVersion: v1
+data:
+  lab02-failures.json: |
+    {
+      "uid": "lab02-failures",
+      "title": "Lab 02 - 장애 지표",
+      "description": "02번 실습(OOMKilled, CPU throttling, liveness probe 실패)이 지표로 어떻게 보이는지 확인하는 대시보드",
+      "tags": ["lab", "k8s-ops-lab"],
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": true,
+      "refresh": "30s",
+      "time": { "from": "now-30m", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "데이터소스",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          },
+          {
+            "name": "namespace",
+            "label": "네임스페이스",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": { "query": "label_values(kube_pod_info, namespace)", "refId": "ns" },
+            "definition": "label_values(kube_pod_info, namespace)",
+            "refresh": 2,
+            "sort": 1,
+            "current": { "text": "default", "value": "default" },
+            "includeAll": false,
+            "multi": false
+          },
+          {
+            "name": "pod",
+            "label": "파드",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": { "query": "label_values(kube_pod_info{namespace=\"$namespace\"}, pod)", "refId": "pod" },
+            "definition": "label_values(kube_pod_info{namespace=\"$namespace\"}, pod)",
+            "refresh": 2,
+            "sort": 1,
+            "current": { "text": "All", "value": "$__all" },
+            "includeAll": true,
+            "multi": true
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "timeseries",
+          "title": "컨테이너 재시작 횟수 (OOM, liveness 감지)",
+          "description": "kube_pod_container_status_restarts_total. 계단식으로 오르면 재시작이 반복되는 것. OOM은 메모리 그래프보다 이 지표로 감지한다 (수집 주기보다 빨리 죽으면 메모리 그래프에 안 잡힘)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "max by (pod, container) (kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$pod\"})",
+              "legendFormat": "{{pod}} / {{container}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 10 } },
+            "overrides": []
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+        },
+        {
+          "id": 2,
+          "type": "table",
+          "title": "마지막 종료 사유",
+          "description": "kube_pod_container_status_last_terminated_reason. 컨테이너가 마지막에 왜 종료됐는지 (OOMKilled, Error, Completed 등)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kube_pod_container_status_last_terminated_reason{namespace=\"$namespace\", pod=~\"$pod\"} == 1",
+              "format": "table",
+              "instant": true
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "includeByName": { "pod": true, "container": true, "reason": true },
+                "indexByName": { "pod": 0, "container": 1, "reason": 2 },
+                "renameByName": { "pod": "파드", "container": "컨테이너", "reason": "종료 사유" }
+              }
+            }
+          ],
+          "fieldConfig": { "defaults": {}, "overrides": [] },
+          "options": { "showHeader": true }
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "CPU 사용량 vs limit (코어)",
+          "description": "사용량이 limit에서 평평하게 잘리면 throttling 중. CPU는 한도를 넘으려 해도 죽지 않고 느려지기만 한다",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"$pod\", container!=\"\"}[1m]))",
+              "legendFormat": "사용량 {{pod}}"
+            },
+            {
+              "refId": "B",
+              "expr": "max by (pod) (kube_pod_container_resource_limits{namespace=\"$namespace\", pod=~\"$pod\", resource=\"cpu\"})",
+              "legendFormat": "limit {{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "none", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+            "overrides": [
+              {
+                "matcher": { "id": "byRegexp", "options": "limit.*" },
+                "properties": [
+                  { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+                  { "id": "custom.fillOpacity", "value": 0 }
+                ]
+              }
+            ]
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "CPU throttling 비율",
+          "description": "throttled_periods / periods. CPU를 쓸 수 있는 시간 구간 중 한도에 걸려 멈춘 비율. 1에 가까우면 거의 계속 멈춰 있는 것",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"$namespace\", pod=~\"$pod\", container!=\"\"}[1m])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=\"$namespace\", pod=~\"$pod\", container!=\"\"}[1m]))",
+              "legendFormat": "{{pod}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+            "overrides": []
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "probe 실패 횟수 (최근 5분)",
+          "description": "kubelet의 prober_probe_total 중 result=failed의 5분간 증가량. 같은 결과의 시리즈가 2개씩 나오므로 합산(sum)하면 2배가 되어 max를 사용한다",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "max by (pod, probe_type) (increase(prober_probe_total{namespace=\"$namespace\", pod=~\"$pod\", result=\"failed\"}[5m]))",
+              "legendFormat": "{{pod}} / {{probe_type}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "decimals": 0, "custom": { "drawStyle": "bars", "fillOpacity": 60 } },
+            "overrides": []
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/part-of: k8s-ops-lab
+    grafana_dashboard: "1"
+  name: lab02-failures-dashboard
+  namespace: monitoring

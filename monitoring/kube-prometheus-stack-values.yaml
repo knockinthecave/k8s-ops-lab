@@ -1,0 +1,83 @@
+# kube-prometheus-stack (helm chart 93.3.0)
+# Prometheus, Alertmanager, Grafana, kube-state-metrics, node-exporter를 한 번에 설치한다.
+#
+# 로컬 kind(Docker 메모리 약 7.7GiB, 노드 4개 공유)에서 돌리기 위한 경량 설정이다.
+
+# kind에서는 control-plane 컴포넌트가 localhost에만 바인딩되어 수집할 수 없다.
+# 수집 대상으로 두면 계속 DOWN으로 표시되고 알림이 울리므로 끈다.
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+defaultRules:
+  rules:
+    # 위에서 끈 컴포넌트의 규칙도 함께 끈다.
+    etcd: false
+    kubeSchedulerAlerting: false
+    kubeControllerManager: false
+    kubeProxy: false
+
+prometheus:
+  prometheusSpec:
+    # 로컬 실습이라 짧게 보관하고 영속 볼륨은 쓰지 않는다 (파드가 재시작되면 데이터 사라짐).
+    retention: 6h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+      limits:
+        memory: 1Gi
+    # 이 차트가 만든 규칙뿐 아니라 우리가 추가하는 ServiceMonitor, PrometheusRule도 수집하도록
+    # release 라벨 조건을 해제한다.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+
+grafana:
+  # 로컬 접속(port-forward) 전용. 외부에 노출하지 않는다.
+  # 기본 대시보드를 열면 쿼리가 한꺼번에 실행되어 메모리가 순간적으로 오른다.
+  # 384Mi에서는 OOMKilled(Exit Code 137)로 재시작되어 512Mi로 올렸다.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 64Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
