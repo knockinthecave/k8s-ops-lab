@@ -8,10 +8,13 @@
 .
 ├── cluster/
 │   └── kind.yml              # kind 클러스터 설정 (control-plane 1 + worker 3)
-└── apps/
-    └── podinfo/
-        ├── deployment.yaml   # podinfo 파드 3개를 선언적으로 관리
-        └── service.yaml      # 파드에 접근하는 ClusterIP 서비스 (9898)
+├── apps/
+│   └── podinfo/
+│       ├── deployment.yaml   # podinfo 파드 3개를 선언적으로 관리
+│       └── service.yaml      # 파드에 접근하는 ClusterIP 서비스 (9898)
+├── labs/
+│   └── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
+└── docs/labs/                # 실습 기록
 ```
 
 ## 매니페스트란?
@@ -56,6 +59,7 @@ kind delete cluster
 | 번호 | 주제 | 문서 |
 | --- | --- | --- |
 | 01 | 안정성 기본기 (probe, resources, 롤링 업데이트) | [docs/labs/01-stability.md](docs/labs/01-stability.md) |
+| 02 | 장애 재현 (liveness, OOMKilled, CPU throttling) | [docs/labs/02-failure-injection.md](docs/labs/02-failure-injection.md) |
 
 ## 브랜치 규칙
 

@@ -1,0 +1,22 @@
+# 실습 1: liveness가 /readyz를 보게 해서, 앱은 살아 있지만 "응답 불가" 상태를 만든다.
+# /readyz/disable 호출 -> /readyz가 503 -> liveness 3회 연속 실패 -> 컨테이너 재시작
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-test
+  labels:
+    app: liveness-test
+spec:
+  containers:
+    - name: podinfo
+      image: ghcr.io/stefanprodan/podinfo:6.17.0
+      ports:
+        - name: http
+          containerPort: 9898
+      livenessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        periodSeconds: 10
+        timeoutSeconds: 2
+        failureThreshold: 3
