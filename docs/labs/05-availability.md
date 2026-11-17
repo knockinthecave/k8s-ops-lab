@@ -23,6 +23,12 @@
 - PDB 있음: `Cannot evict pod as it would violate the pod's disruption budget.`가 나오며 drain이 5초 간격으로 재시도했고, 새 파드가 Ready가 된 뒤에 다음 파드가 evict됐다. `ALLOWED DISRUPTIONS`는 1이었다.
 - 롤아웃(`rollout restart`) 시작 시점에도 503이 1건 있었다(PDB 없음 실험 직전). 원인은 확인하지 않았다.
 
+### `minAvailable`을 replicas와 같게 둔 경우 (`labs/05/pdb-min3.yaml`)
+- `kubectl get pdb`의 `ALLOWED DISRUPTIONS`가 **0**이 됐다. `worker3`(podinfo 파드 2개)를 `--timeout=30s`로 drain하자 파드마다 약 6번 재시도하다가 `global timeout reached: 30s`로 실패했다. 파드는 하나도 evict되지 않았고 노드는 `Ready,SchedulingDisabled`로 남았다. 요청 125건은 모두 200이었다(서비스는 영향 없음).
+- 실무 의미: 이 설정은 **노드 비우기를 영원히 막는다.** 업그레이드나 노드 교체 자동화가 이 PDB 때문에 멈출 수 있다. 증상은 drain이 끝나지 않는 것이고, 진단은 `kubectl get pdb`에서 `ALLOWED DISRUPTIONS: 0`을 확인하는 것이다.
+- 해결: `kubectl apply -f apps/podinfo/pdb.yaml`로 `minAvailable: 2`로 되돌리자 같은 drain이 9초 만에 끝났고 요청 43건 모두 200이었다.
+- 처음 시도는 PDB와 무관하게 실패했다. `probe-client`가 컨트롤러 없는 단독 파드이고 `worker3`에 고정돼 있어서 drain이 `cannot delete Pods that declare no controller (use --force to override)`로 거부했다(시작 전 검사 단계). 클라이언트를 `worker`로 옮겨서 다시 했다. PDB 실험과 헷갈리지 않도록 에러 메시지를 구분해서 읽어야 한다.
+
 ## 4. 개념 정리
 
 일반 지식이며, 이 실습에서 직접 확인한 범위는 3절과 표시한 부분뿐이다.
@@ -80,18 +86,17 @@
 ## 6. 검증하지 않은 것
 
 - 503의 정확한 출처(종료 중인 파드의 응답인지 다른 경로인지)
-- `minAvailable`을 replicas와 같게 두면 drain이 멈추는지
 - 노드 장애(비자발적 중단)에서 PDB가 무관하다는 점
 
 ## 7. 정리
 
-`kubectl uncordon k8s-ops-lab-cluster-worker`로 노드를 복구했다. `probe-client` 파드는 다음 실험에 쓰려고 남겨 두었다(`kubectl delete -f labs/05/probe-client.yaml`로 삭제).
+drain한 노드는 모두 `kubectl uncordon`으로 복구했고, PDB는 `apps/podinfo/pdb.yaml`(`minAvailable: 2`) 상태다. `probe-client` 파드는 `worker`에 두고 다음 실험에 쓰려고 남겨 두었다(`kubectl delete -f labs/05/probe-client.yaml`로 삭제).
 
 ## 8. 다음 할 일
 
 - [x] PDB 없이 drain
 - [x] PDB 적용 후 drain
-- [ ] `minAvailable`을 replicas와 같게 해서 drain이 멈추는 경우
+- [x] `minAvailable`을 replicas와 같게 해서 drain이 멈추는 경우
 - [ ] `topologySpreadConstraints`로 노드 분산
 - [ ] HPA (부하 중 스케일 동작과 지연)
 - [ ] ResourceQuota, LimitRange
