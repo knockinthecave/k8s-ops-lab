@@ -8,9 +8,10 @@ metadata:
   labels:
     app: probe-client
 spec:
-  # 실습 대상 워커와 다른 곳에 두기 위해 컨트롤 플레인에 둘 수는 없으므로
-  # drain 대상이 아닌 노드에 nodeName으로 고정한다.
-  nodeName: k8s-ops-lab-cluster-worker3
+  # 컨트롤러 없는 단독 파드라 drain 대상 노드에 있으면 drain이 거부된다.
+  # (--force 없이는 `cannot delete Pods that declare no controller`)
+  # 그래서 drain하지 않을 노드에 nodeName으로 고정한다. drain 대상을 바꾸면 이 값도 바꾼다.
+  nodeName: k8s-ops-lab-cluster-worker
   containers:
     - name: curl
       image: curlimages/curl:8.11.1

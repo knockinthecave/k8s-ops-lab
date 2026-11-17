@@ -1,0 +1,14 @@
+# 05 실습: minAvailable을 replicas(3)와 같게 둔 PDB.
+# 이름이 apps/podinfo/pdb.yaml과 같아서 apply하면 덮어쓴다 (같은 파드에 PDB를 둘 두면 evict가 에러가 난다).
+# 실습 후 `kubectl apply -f apps/podinfo/pdb.yaml`로 되돌린다.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: podinfo
+  labels:
+    app: podinfo
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: podinfo
