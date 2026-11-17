@@ -1,0 +1,66 @@
+# 04 알림 규칙 (default 네임스페이스의 워크로드 대상)
+#
+# kube-prometheus-stack의 기본 규칙(KubePodCrashLooping, KubePodNotReady, CPUThrottlingHigh)은
+# for가 15m이라 감지가 느리고, OOMKilled를 따로 알려 주지 않는다.
+# 여기서는 기본 규칙을 대체하지 않고, 더 빠르고 원인이 구체적인 알림을 추가한다.
+# 임계값은 로컬 실습용이라 짧게 잡았다. 운영에서는 오탐을 보면서 늘린다.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: workload-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: k8s-ops-lab
+spec:
+  groups:
+    - name: workload.rules
+      rules:
+        - alert: ContainerRestartingRepeatedly
+          # 10분 안에 2번 이상 재시작. 한 번 재시작은 배포나 일시 오류일 수 있어 무시한다.
+          expr: increase(kube_pod_container_status_restarts_total{namespace="default"}[10m]) >= 2
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}/{{ $labels.container }}가 10분간 {{ $value | humanize }}회 재시작"
+            description: "원인 확인: kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }} 의 Last State와 Events"
+
+        - alert: ContainerOOMKilled
+          # 마지막 종료 사유가 OOMKilled이면서 최근 10분 안에 재시작이 있었던 경우만.
+          # last_terminated_reason은 다음 종료까지 유지되므로 재시작 증가 조건을 함께 건다.
+          expr: |
+            (kube_pod_container_status_last_terminated_reason{namespace="default", reason="OOMKilled"} == 1)
+            and on (namespace, pod, container)
+            (increase(kube_pod_container_status_restarts_total{namespace="default"}[10m]) > 0)
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.pod }}/{{ $labels.container }}가 메모리 limit 초과로 OOMKilled"
+            description: "container_memory_working_set_bytes와 limit을 비교하고 resources.limits.memory를 점검"
+
+        - alert: ContainerCPUThrottled
+          # 최근 5분간 CFS 기간 중 50% 넘게 throttle. 기본 규칙(25%, 15m)보다 빠르고 민감하다.
+          expr: |
+            sum by (namespace, pod, container) (increase(container_cpu_cfs_throttled_periods_total{namespace="default", container!=""}[5m]))
+            /
+            sum by (namespace, pod, container) (increase(container_cpu_cfs_periods_total{namespace="default", container!=""}[5m]))
+            > 0.5
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}/{{ $labels.container }}의 CPU throttling 비율 {{ $value | humanizePercentage }}"
+            description: "CPU limit 때문에 느려지는 중. 사용량과 limit을 비교"
+
+        - alert: PodNotReady
+          # Running인데 Ready가 아닌 상태가 2분 지속. readinessProbe 실패나 의존성 문제.
+          expr: |
+            kube_pod_status_phase{namespace="default", phase="Running"} == 1
+            and on (namespace, pod)
+            kube_pod_status_ready{namespace="default", condition="true"} == 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.pod }}가 2분 넘게 NotReady"
+            description: "kubectl describe pod의 Events에서 readiness probe 실패 여부 확인"

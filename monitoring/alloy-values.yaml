@@ -1,0 +1,68 @@
+# alloy (helm chart grafana/alloy 1.16.0, app v1.22.0)
+# 각 노드에서 파드 로그를 수집해 Loki로 보낸다. (DaemonSet, 차트 기본값)
+#
+# loki.source.kubernetes는 Kubernetes API(pods/log)로 로그를 읽어서 hostPath 마운트가 필요 없다.
+# 단 DaemonSet에서는 모든 인스턴스가 모든 노드의 파드를 읽어 로그가 중복되므로,
+# 아래 discovery.kubernetes의 selectors로 자기 노드의 파드만 대상으로 한다.
+
+controller:
+  type: daemonset
+
+alloy:
+  # 자기 노드 이름. 파드가 실행 중인 노드로 채워진다.
+  extraEnv:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+  configMap:
+    content: |
+      // 자기 노드의 파드만 찾는다.
+      discovery.kubernetes "pods" {
+        role = "pod"
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + sys.env("NODE_NAME")
+        }
+      }
+
+      // 로그에 붙일 라벨. 카디널리티가 커지지 않도록 필요한 것만 둔다.
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+        }
+      }
