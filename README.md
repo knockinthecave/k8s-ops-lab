@@ -15,7 +15,12 @@
 ├── monitoring/
 │   ├── metrics-server-values.yaml        # metrics-server helm values
 │   ├── kube-prometheus-stack-values.yaml # Prometheus/Grafana/Alertmanager helm values
-│   └── podinfo-servicemonitor.yaml       # podinfo 메트릭 수집 대상 등록 (ServiceMonitor CR)
+│   ├── podinfo-servicemonitor.yaml       # podinfo 메트릭 수집 대상 등록 (ServiceMonitor CR)
+│   ├── podinfo-alerts.yaml               # 워크로드 알림 규칙 (PrometheusRule CR)
+│   ├── loki-values.yaml                  # Loki(단일 바이너리) helm values
+│   ├── alloy-values.yaml                 # Alloy(로그 수집 DaemonSet) helm values와 수집 설정
+│   ├── loki-datasource.yaml              # Grafana에 Loki 데이터 소스 추가 (ConfigMap)
+│   └── dashboards/                       # Grafana 대시보드 JSON과 ConfigMap
 ├── labs/
 │   └── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
 └── docs/labs/                # 실습 기록
@@ -65,6 +70,7 @@ kind delete cluster
 | 01 | 안정성 기본기 (probe, resources, 롤링 업데이트) | [docs/labs/01-stability.md](docs/labs/01-stability.md) |
 | 02 | 장애 재현 (liveness, OOMKilled, CPU throttling) | [docs/labs/02-failure-injection.md](docs/labs/02-failure-injection.md) |
 | 03 | 메트릭 수집과 대시보드 (metrics-server, kube-prometheus-stack) | [docs/labs/03-monitoring.md](docs/labs/03-monitoring.md) |
+| 04 | 알림 규칙과 로깅 (PrometheusRule, Loki, Alloy) | [docs/labs/04-alerting.md](docs/labs/04-alerting.md) |
 
 ## 참고 문서
 
