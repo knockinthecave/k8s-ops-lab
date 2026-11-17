@@ -29,6 +29,36 @@
 - 해결: `kubectl apply -f apps/podinfo/pdb.yaml`로 `minAvailable: 2`로 되돌리자 같은 drain이 9초 만에 끝났고 요청 43건 모두 200이었다.
 - 처음 시도는 PDB와 무관하게 실패했다. `probe-client`가 컨트롤러 없는 단독 파드이고 `worker3`에 고정돼 있어서 drain이 `cannot delete Pods that declare no controller (use --force to override)`로 거부했다(시작 전 검사 단계). 클라이언트를 `worker`로 옮겨서 다시 했다. PDB 실험과 헷갈리지 않도록 에러 메시지를 구분해서 읽어야 한다.
 
+### 노드 장애: 분산 배치가 없을 때와 있을 때
+`docker stop k8s-ops-lab-cluster-worker3`로 노드를 갑자기 죽였다(비자발적 중단). 두 실험 모두 PDB(`minAvailable: 2`)가 적용된 상태였다. 측정은 같은 `probe-client`(0.2초 간격)로 했고 시각은 UTC다.
+
+| | A. 파드 3개가 죽은 노드에 몰림 | B. `topologySpreadConstraints`로 1/1/1 분산 |
+| --- | --- | --- |
+| 노드 `NotReady` | +44초 | +44초 |
+| Ready 엔드포인트 | 0개 (서비스 완전 중단) | 2개 (서비스 유지) |
+| 새 파드 생성 | +351초 근처 (기존 파드는 `Terminating`) | +351초 근처 (1개) |
+| 비정상 응답 | 000 516건 + 503 14건, 약 346초간 | 000 24건 + 503 5건, 약 42초간 |
+| 정상 응답 | - | 1456건 |
+
+- **PDB는 이 상황에서 아무 보호도 하지 못했다.** A에서 3개가 한꺼번에 사라졌다.
+- A의 실패는 장애 직후부터 새 파드가 뜰 때까지 계속됐다. B의 실패 29건은 모두 장애 직후 약 42초 안에 났고, 이후에는 남은 2개 파드로 계속 응답했다. 이 구간은 노드가 죽은 것을 쿠버네티스가 알아채기 전이라 엔드포인트에 죽은 파드가 남아 있던 때로 보인다(노드 `NotReady` 전환이 +44초).
+- 파드 재생성은 장애 후 약 5~6분이 걸렸다. 40초(노드 NotReady 판정)에 파드 종료 허용 시간 300초가 더해진 값으로 알고 있다(기본 `tolerationSeconds: 300`). 이 값은 확인하지 않았다.
+- 노드를 `docker start`로 되살린 뒤에도 파드는 되돌아가지 않았다. 파드는 `worker` 2개, `worker2` 1개, `worker3` 0개로 남았다. 스케줄러의 분산은 파드를 만들 때만 적용되고 사후에 균형을 다시 맞추지 않는다(재배치는 별도 도구가 필요한 것으로 알고 있으며, 확인하지 않았다).
+
+### `topologySpreadConstraints`와 롤링 업데이트
+- `labelSelector: app=podinfo`만 쓰고 `kubectl apply`하자 파드가 `worker` 2, `worker3` 1, `worker2` 0으로 놓였다. `maxSkew: 1`인데 차이가 2다.
+- `matchLabelKeys: [pod-template-hash]`를 추가하자 롤아웃 두 번 모두 노드마다 1개씩(1/1/1) 놓였다.
+- 가설: 롤링 업데이트 중에는 이전 버전 파드도 같은 라벨이라 함께 세어져서 새 파드의 분포가 어긋난다. `pod-template-hash`는 ReplicaSet별 값이라 새 파드끼리만 세게 된다. 결과는 가설과 일치하지만, 두세 번의 관찰이라 원인을 확정한 것은 아니다.
+- `whenUnsatisfiable: DoNotSchedule`은 조건을 못 맞추면 파드를 `Pending`으로 둔다. `ScheduleAnyway`는 선호만 한다. 노드 하나가 죽었을 때 `DoNotSchedule`이 파드를 Pending으로 만드는지는 이번에 확인하지 않았다(B에서 새 파드는 정상 생성됐다).
+- `nodeTaintsPolicy: Honor`는 테인트로 파드를 받을 수 없는 노드(control-plane)를 분산 계산에서 뺀다. 이 값 없이 한 경우는 확인하지 않았다.
+
+### taint와 toleration
+- **taint**: 노드에 붙이는 "아무 파드나 오지 마" 표시. `키=값:효과` 형식이다. 이 클러스터의 control-plane 노드에는 `node-role.kubernetes.io/control-plane:NoSchedule`이 붙어 있다(확인함). 그래서 podinfo 같은 일반 파드는 그 노드에 배치되지 않는다.
+- **toleration**: 파드에 붙이는 "그 taint를 견딜 수 있다" 표시. 맞는 toleration이 있는 파드만 taint가 붙은 노드에 올 수 있다.
+- 효과(effect): `NoSchedule`(새 파드 배치 금지), `PreferNoSchedule`(가급적 피함), `NoExecute`(이미 있는 파드도 쫓아냄).
+- 노드 장애 때 쿠버네티스는 노드에 `not-ready:NoExecute` 같은 taint를 자동으로 붙이고, 파드에는 기본으로 300초짜리 toleration이 붙어 있어 그 시간 뒤에 파드가 쫓겨난다고 알고 있다. 위의 5~6분 지연과 일치하지만 이 부분은 확인하지 않았다.
+- `cordon`도 노드에 `unschedulable` taint를 붙이는 것과 비슷하게 동작한다고 알고 있다(확인하지 않음).
+
 ## 4. 개념 정리
 
 일반 지식이며, 이 실습에서 직접 확인한 범위는 3절과 표시한 부분뿐이다.
@@ -86,7 +116,9 @@
 ## 6. 검증하지 않은 것
 
 - 503의 정확한 출처(종료 중인 파드의 응답인지 다른 경로인지)
-- 노드 장애(비자발적 중단)에서 PDB가 무관하다는 점
+- 노드 장애 후 파드 재생성 지연이 `tolerationSeconds: 300`에서 오는지
+- `nodeTaintsPolicy: Honor`를 빼면 분산이 달라지는지
+- 노드가 죽은 상태에서 `DoNotSchedule`이 파드를 Pending으로 만드는지
 
 ## 7. 정리
 
@@ -97,6 +129,6 @@ drain한 노드는 모두 `kubectl uncordon`으로 복구했고, PDB는 `apps/po
 - [x] PDB 없이 drain
 - [x] PDB 적용 후 drain
 - [x] `minAvailable`을 replicas와 같게 해서 drain이 멈추는 경우
-- [ ] `topologySpreadConstraints`로 노드 분산
+- [x] `topologySpreadConstraints`로 노드 분산 (노드 장애 비교 포함)
 - [ ] HPA (부하 중 스케일 동작과 지연)
 - [ ] ResourceQuota, LimitRange
