@@ -9,8 +9,8 @@ metadata:
   labels:
     app: podinfo
 spec:
-  # 유지할 파드 복제본 수 (3개가 항상 실행되도록 보장)
-  replicas: 3
+  # replicas는 일부러 적지 않는다. 복제본 수는 HPA(hpa.yaml)가 관리한다 (minReplicas 3, maxReplicas 6).
+  # 여기에 적으면 apply할 때마다 그 값으로 덮어써서 HPA와 충돌한다.
   # 롤링 업데이트 전략: 새 버전 배포 시 파드를 점진적으로 교체
   strategy:
     type: RollingUpdate

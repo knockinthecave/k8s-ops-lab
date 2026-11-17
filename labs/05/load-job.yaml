@@ -1,0 +1,26 @@
+# 05 실습: podinfo Service에 부하를 주는 Job (HPA 스케일 동작 관찰용).
+# hey 옵션: -z 지속 시간, -c 동시 연결 수, -q 연결당 초당 요청 수(총 약 c*q rps).
+# hey는 요청 결과를 메모리에 모으므로 limit이 작으면 OOMKilled가 난다(128Mi에서 실제로 발생).
+# 끝나면 스스로 종료한다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      nodeName: k8s-ops-lab-cluster-worker
+      containers:
+        - name: hey
+          image: williamyeh/hey:latest
+          args: ["-z", "150s", "-c", "50", "-q", "40", "http://podinfo.default.svc:9898/"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
