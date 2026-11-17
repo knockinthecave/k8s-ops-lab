@@ -1,0 +1,25 @@
+# HorizontalPodAutoscaler: 파드의 평균 CPU 사용률을 보고 replicas를 자동 조절한다.
+# 사용률은 "requests 대비 비율"이다 (podinfo requests cpu 50m -> 50%는 파드당 25m).
+# metrics-server가 있어야 동작한다 (monitoring/metrics-server-values.yaml).
+# 주의: Deployment의 replicas와 HPA가 같이 있으면 `kubectl apply -f deployment.yaml`이
+# replicas를 다시 3으로 덮어쓴다 (HPA가 곧 다시 조정한다).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: podinfo
+  labels:
+    app: podinfo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: podinfo
+  minReplicas: 3
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50

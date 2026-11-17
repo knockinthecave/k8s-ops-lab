@@ -10,8 +10,10 @@
 │   └── kind.yaml             # kind 클러스터 설정 (control-plane 1 + worker 3)
 ├── apps/
 │   └── podinfo/
-│       ├── deployment.yaml   # podinfo 파드 3개를 선언적으로 관리
-│       └── service.yaml      # 파드에 접근하는 ClusterIP 서비스 (9898)
+│       ├── deployment.yaml   # podinfo 배포 (노드 분산 배치 포함, replicas는 HPA가 관리)
+│       ├── service.yaml      # 파드에 접근하는 ClusterIP 서비스 (9898)
+│       ├── pdb.yaml          # drain 때 최소 2개 유지 (PodDisruptionBudget)
+│       └── hpa.yaml          # CPU 기준 자동 스케일 3~6개 (HorizontalPodAutoscaler)
 ├── monitoring/
 │   ├── metrics-server-values.yaml        # metrics-server helm values
 │   ├── kube-prometheus-stack-values.yaml # Prometheus/Grafana/Alertmanager helm values
@@ -22,7 +24,8 @@
 │   ├── loki-datasource.yaml              # Grafana에 Loki 데이터 소스 추가 (ConfigMap)
 │   └── dashboards/                       # Grafana 대시보드 JSON과 ConfigMap
 ├── labs/
-│   └── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
+│   ├── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
+│   └── 05/                   # 실습용 매니페스트 (요청 측정 클라이언트, 부하 Job, 엄격한 PDB)
 └── docs/labs/                # 실습 기록
 ```
 
@@ -33,8 +36,10 @@
 | 파일 | 설명 |
 | --- | --- |
 | `cluster/kind.yaml` | kind 클러스터 구성. 쿠버네티스 리소스가 아니라 kind가 읽는 설정 파일 |
-| `apps/podinfo/deployment.yaml` | podinfo `6.17.0` 이미지, 복제본 3개 유지 |
+| `apps/podinfo/deployment.yaml` | podinfo `6.17.0` 이미지, 노드에 고르게 분산. 복제본 수는 HPA가 정함 |
 | `apps/podinfo/service.yaml` | 라벨 `app: podinfo` 파드로 트래픽 전달, 포트 `9898` |
+| `apps/podinfo/pdb.yaml` | 노드를 비울 때 Ready 파드를 최소 2개 유지 |
+| `apps/podinfo/hpa.yaml` | CPU 사용률 50% 기준으로 3~6개 자동 조절 |
 
 ## 사전 준비
 
@@ -71,6 +76,7 @@ kind delete cluster
 | 02 | 장애 재현 (liveness, OOMKilled, CPU throttling) | [docs/labs/02-failure-injection.md](docs/labs/02-failure-injection.md) |
 | 03 | 메트릭 수집과 대시보드 (metrics-server, kube-prometheus-stack) | [docs/labs/03-monitoring.md](docs/labs/03-monitoring.md) |
 | 04 | 알림 규칙과 로깅 (PrometheusRule, Loki, Alloy) | [docs/labs/04-alerting.md](docs/labs/04-alerting.md) |
+| 05 | 가용성 설계 (PDB, drain, 노드 분산, HPA) *진행 중: HPA 부하 실험과 자원 관리(Quota 등) 남음* | [docs/labs/05-availability.md](docs/labs/05-availability.md) |
 
 ## 참고 문서
 

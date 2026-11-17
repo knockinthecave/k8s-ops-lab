@@ -1,0 +1,33 @@
+# 05 실습: Service로 요청을 계속 보내 성공/실패를 기록하는 클라이언트.
+# drain 중 요청이 끊기는지 측정하는 용도다. 로그 형식: <시각> <HTTP 상태코드>
+# 000은 연결 실패 또는 타임아웃이다.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe-client
+  labels:
+    app: probe-client
+spec:
+  # 컨트롤러 없는 단독 파드라 drain 대상 노드에 있으면 drain이 거부된다.
+  # (--force 없이는 `cannot delete Pods that declare no controller`)
+  # 그래서 drain하지 않을 노드에 nodeName으로 고정한다. drain 대상을 바꾸면 이 값도 바꾼다.
+  nodeName: k8s-ops-lab-cluster-worker
+  containers:
+    - name: curl
+      image: curlimages/curl:8.11.1
+      command:
+        - sh
+        - -c
+        - |
+          while true; do
+            code=$(curl -s -o /dev/null -m 1 -w '%{http_code}' http://podinfo.default.svc:9898/healthz)
+            echo "$(date +%H:%M:%S) $code"
+            sleep 0.2
+          done
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi

@@ -9,8 +9,8 @@ metadata:
   labels:
     app: podinfo
 spec:
-  # 유지할 파드 복제본 수 (3개가 항상 실행되도록 보장)
-  replicas: 3
+  # replicas는 일부러 적지 않는다. 복제본 수는 HPA(hpa.yaml)가 관리한다 (minReplicas 3, maxReplicas 6).
+  # 여기에 적으면 apply할 때마다 그 값으로 덮어써서 HPA와 충돌한다.
   # 롤링 업데이트 전략: 새 버전 배포 시 파드를 점진적으로 교체
   strategy:
     type: RollingUpdate
@@ -35,6 +35,25 @@ spec:
         # Service selector가 이 라벨로 파드를 찾음
         app: podinfo
     spec:
+      # 파드를 노드에 고르게 분산한다. 한 노드가 죽어도 파드가 한꺼번에 사라지지 않게 하는 용도.
+      # (PDB는 drain 같은 자발적 중단만 막고 노드 장애는 막지 못한다)
+      topologySpreadConstraints:
+        # 노드 간 파드 수 차이(skew)를 최대 1까지만 허용
+        - maxSkew: 1
+          # 노드(호스트 이름)를 분산 단위로 삼는다. 존 단위는 topology.kubernetes.io/zone
+          topologyKey: kubernetes.io/hostname
+          # 조건을 못 맞추면 스케줄하지 않고 Pending으로 둔다. 선호만 하려면 ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          # 테인트 때문에 파드를 못 받는 노드(control-plane)는 분산 계산에서 뺀다
+          nodeTaintsPolicy: Honor
+          # 이 라벨을 가진 파드의 개수를 기준으로 센다
+          labelSelector:
+            matchLabels:
+              app: podinfo
+          # 롤링 업데이트 중에는 이전 버전 파드도 같은 라벨이라 함께 세어져 분산이 어긋난다.
+          # pod-template-hash(ReplicaSet별 값)가 같은 파드끼리만 세도록 한다.
+          matchLabelKeys:
+            - pod-template-hash
       containers:
         # 컨테이너 이름
         - name: podinfo
