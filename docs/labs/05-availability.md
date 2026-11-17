@@ -59,6 +59,20 @@
 - 노드 장애 때 쿠버네티스는 노드에 `not-ready:NoExecute` 같은 taint를 자동으로 붙이고, 파드에는 기본으로 300초짜리 toleration이 붙어 있어 그 시간 뒤에 파드가 쫓겨난다고 알고 있다. 위의 5~6분 지연과 일치하지만 이 부분은 확인하지 않았다.
 - `cordon`도 노드에 `unschedulable` taint를 붙이는 것과 비슷하게 동작한다고 알고 있다(확인하지 않음).
 
+### HPA 설정 (`apps/podinfo/hpa.yaml`) - 부하 실험은 아직 하지 않음
+- 설정: CPU 평균 사용률 50%(requests `50m` 기준 파드당 25m), `minReplicas: 3`, `maxReplicas: 6`, `behavior`는 기본값. 스케일 지연의 기본 동작을 보려고 기본값을 그대로 뒀다.
+- metrics-server가 정상이다: `kubectl top pods`가 동작하고 `v1beta1.metrics.k8s.io`가 `True`다. HPA 적용 20초 뒤 `cpu: 4%/50%`로 인식됐다.
+- `scaleTargetRef`는 `apiVersion`, `kind`, `name`으로 대상을 가리킨다. `name`은 Deployment의 `metadata.name`과 같아야 하고, 같은 네임스페이스의 리소스만 찾는다. 파드 라벨로 찾지 않는다(일반 지식).
+- **`replicas`와 HPA**: `deployment.yaml`에 `replicas: 3`이 있으면 `apply`할 때마다 그 값으로 덮어써서 HPA와 충돌한다. 그래서 `replicas`를 지웠다.
+  - 확인한 것: 지우고 `apply`하자 `kubectl diff`에 `replicas: 3 → 1`이 나왔고, 실제로 1로 떨어졌다가 **약 16초 만에 HPA가 3으로 복구**했다. 그동안 probe 482건 중 503이 2건이었다. 이미 운영 중인 Deployment에서 이 변경을 할 때 순간적으로 1개가 되는 구간이 생긴다.
+  - 최소 개수는 이제 HPA의 `minReplicas`가 정한다.
+- 적용: 지금은 `kubectl apply -f apps/podinfo/`로 폴더째 적용한다. 실무에서는 Git에 커밋하고 GitOps 도구(Argo CD 등)가 반영하며, 이때도 `replicas`는 매니페스트에 적지 않는다(일반 지식, 로드맵 07번에서 다룸).
+
+#### 부하 도구에서 만난 문제 (`labs/05/load-job.yaml`)
+- `hey`를 `-n 1`로 시험하면 사용법 오류가 난다. 요청 수가 동시성(기본 50)보다 작으면 안 된다.
+- 첫 부하 Job이 **`OOMKilled`**로 실패했다(메모리 limit 128Mi). `hey`가 요청 결과를 메모리에 모으기 때문으로 추정하지만 확인하지는 않았다. 요청 속도를 제한(`-q 40`)하고 limit을 512Mi로 올렸다. 수정 후 실행은 아직 하지 않았다.
+- 폴링 스크립트에서 `kubectl get hpa`의 TARGETS 열(`cpu: 4%/50%`)에 공백이 있어 `awk` 열 번호가 어긋났고, 그 실행 기록은 쓸 수 없었다. 이런 출력은 `awk` 대신 `-o jsonpath`로 읽는다.
+
 ## 4. 개념 정리
 
 일반 지식이며, 이 실습에서 직접 확인한 범위는 3절과 표시한 부분뿐이다.
@@ -127,13 +141,15 @@
 ## 6. 검증하지 않은 것
 
 - 503의 정확한 출처(종료 중인 파드의 응답인지 다른 경로인지)
+- HPA의 스케일 업/다운 동작과 지연, 부하 중 CPU 지표 (부하 실험 미실시)
+- 이미 운영 중인 Deployment에서 `replicas`를 지울 때 1로 떨어지는 동작은 이 환경에서만 확인했다
 - 노드 장애 후 파드 재생성 지연이 `tolerationSeconds: 300`에서 오는지
 - `nodeTaintsPolicy: Honor`를 빼면 분산이 달라지는지
 - 노드가 죽은 상태에서 `DoNotSchedule`이 파드를 Pending으로 만드는지
 
 ## 7. 정리
 
-drain한 노드는 모두 `kubectl uncordon`으로 복구했고, PDB는 `apps/podinfo/pdb.yaml`(`minAvailable: 2`) 상태다. `probe-client` 파드는 `worker`에 두고 다음 실험에 쓰려고 남겨 두었다(`kubectl delete -f labs/05/probe-client.yaml`로 삭제).
+drain한 노드는 모두 `kubectl uncordon`으로 복구했고, PDB는 `apps/podinfo/pdb.yaml`(`minAvailable: 2`) 상태다. `probe-client` 파드는 `worker`에 두고 다음 실험에 쓰려고 남겨 두었다(`kubectl delete -f labs/05/probe-client.yaml`로 삭제). HPA(`podinfo`)는 적용된 상태이고, 부하 Job(`load`)은 실패한 채 남아 있을 수 있어 `kubectl delete job load`로 지운다.
 
 ## 8. 다음 할 일
 
@@ -141,5 +157,5 @@ drain한 노드는 모두 `kubectl uncordon`으로 복구했고, PDB는 `apps/po
 - [x] PDB 적용 후 drain
 - [x] `minAvailable`을 replicas와 같게 해서 drain이 멈추는 경우
 - [x] `topologySpreadConstraints`로 노드 분산 (노드 장애 비교 포함)
-- [ ] HPA (부하 중 스케일 동작과 지연)
+- [ ] HPA (매니페스트 적용과 `replicas` 제거까지 완료, 부하 중 스케일 동작과 지연은 미실시)
 - [ ] ResourceQuota, LimitRange
