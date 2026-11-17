@@ -1,0 +1,23 @@
+# Grafana에 Loki 데이터 소스를 추가한다.
+# Grafana 파드의 grafana-sc-datasources 사이드카가 grafana_datasource=1 라벨의 ConfigMap을 감시해서
+# 변경 시 Grafana에 reload를 호출한다 (대시보드 ConfigMap과 같은 방식, helm upgrade 불필요).
+# helm release에 포함되지 않으므로 지울 때는 kubectl delete -f 로 직접 삭제한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+    app.kubernetes.io/part-of: k8s-ops-lab
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc:3100
+        # 기본 데이터 소스는 Prometheus이므로 false.
+        isDefault: false

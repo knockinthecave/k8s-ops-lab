@@ -1,0 +1,66 @@
+# loki (helm chart grafana/loki 7.6.0, app 3.6.18)
+# 로컬 kind에서 돌리기 위한 단일 바이너리(SingleBinary) 경량 설정이다.
+# 차트 기본값은 분산 모드(SimpleScalable) + S3 스토리지 + 캐시 파드 구성이라 그대로는 로컬에서 동작하지 않는다.
+
+# 기본값 SimpleScalable(read/write/backend 분리)을 단일 파드로 바꾼다.
+deploymentMode: SingleBinary
+
+singleBinary:
+  # 기본값이 0이라 지정하지 않으면 파드가 뜨지 않는다.
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+  persistence:
+    enabled: true
+    size: 2Gi
+
+# SingleBinary로 바꿔도 이 셋의 기본 replicas가 0이 아니라서, 0으로 두지 않으면
+# 차트 검증(validate.yaml)이 "single binary와 simple scalable이 동시에 설정됨"으로 거부한다.
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+loki:
+  # 단일 테넌트. true이면 모든 요청에 X-Scope-OrgID 헤더가 필요하다.
+  auth_enabled: false
+  commonConfig:
+    # 기본값 3. 인스턴스가 1개라 1이 아니면 쓰기가 실패한다.
+    replication_factor: 1
+  storage:
+    # 기본값은 s3. 로컬에서는 파일 시스템(PVC)에 저장한다.
+    type: filesystem
+  # 기본값이 비어 있어 직접 지정해야 한다. (useTestSchema는 테스트용이라 쓰지 않는다.)
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    # 로컬 실습이라 짧게 보관한다. (compactor의 retention_enabled가 켜져야 적용된다.)
+    retention_period: 24h
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+
+# 로컬에서 불필요한 부가 구성요소를 끈다 (메모리 절약).
+resultsCache:
+  enabled: false
+chunksCache:
+  enabled: false
+gateway:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
