@@ -1,0 +1,14 @@
+# PodDisruptionBudget: drain 같은 "자발적 중단" 때 동시에 내려가는 파드 수를 제한한다.
+# minAvailable: 2 -> 항상 2개 이상이 Ready여야 하므로 replicas 3에서는 한 번에 1개만 evict된다.
+# 노드 장애, OOMKilled 같은 비자발적 중단에는 적용되지 않는다.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: podinfo
+  labels:
+    app: podinfo
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: podinfo
