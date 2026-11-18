@@ -1,0 +1,19 @@
+# Argo CD (helm chart argo/argo-cd 10.18.1, Argo CD v3.6.1)
+# 이 저장소를 소스로 클러스터를 Git 상태에 맞추는 GitOps 도구.
+#
+# 설치:
+#   helm repo add argo https://argoproj.github.io/argo-helm
+#   helm install argocd argo/argo-cd --version 10.18.1 -n argocd --create-namespace -f gitops/argocd-values.yaml
+#
+# 로컬 자원(Docker 8GB)을 아끼려고 이번 실습에 필요 없는 구성 요소는 끈다.
+dex:
+  # 외부 로그인(SSO) 연동용. 로컬에서는 admin 계정만 쓴다.
+  enabled: false
+notifications:
+  # 동기화 결과를 Slack 등으로 알리는 구성 요소. 이번 실습 범위 밖.
+  enabled: false
+configs:
+  params:
+    # kubectl port-forward로 http 접속하므로 서버 자체 TLS는 끈다.
+    # 운영에서는 Ingress/TLS 종단 뒤에 두는 구성을 쓴다(로드맵 15번).
+    server.insecure: true
