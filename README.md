@@ -81,7 +81,7 @@ kind delete cluster
 | 03 | 메트릭 수집과 대시보드 (metrics-server, kube-prometheus-stack) | [docs/labs/03-monitoring.md](docs/labs/03-monitoring.md) |
 | 04 | 알림 규칙과 로깅 (PrometheusRule, Loki, Alloy) | [docs/labs/04-alerting.md](docs/labs/04-alerting.md) |
 | 05 | 가용성 설계 (PDB, drain, 노드 분산, HPA) *진행 중: HPA 부하 실험과 자원 관리(Quota 등) 남음* | [docs/labs/05-availability.md](docs/labs/05-availability.md) |
-| 06 | CI 매니페스트 검증 (kubeconform, yamllint, Trivy) *브랜치 보호로 머지 강제는 남음* | [docs/labs/06-ci.md](docs/labs/06-ci.md) |
+| 06 | CI 매니페스트 검증 (kubeconform, yamllint, Trivy) *Ruleset으로 머지 조건 강제* | [docs/labs/06-ci.md](docs/labs/06-ci.md) |
 
 ## 참고 문서
 
