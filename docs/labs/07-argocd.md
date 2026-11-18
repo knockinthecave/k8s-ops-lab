@@ -1,6 +1,6 @@
 # 07. GitOps 기본: Argo CD
 
-> 진행 중. 설치, 드리프트 감지와 self-heal, 잘못된 변경 병합과 `git revert` 롤백까지 했다. app-of-apps와 `prune`(Application 삭제)까지 했다. ApplicationSet은 하지 않았다.
+> 07번은 여기서 마무리한다. 설치, 드리프트 감지와 self-heal, 잘못된 변경 병합과 `git revert` 롤백, app-of-apps, Application 삭제 시 `prune`까지 했다. 동기화 실패 진단과 ApplicationSet은 하지 않았다(5, 6절).
 
 ## 1. 목표
 
@@ -80,7 +80,7 @@ Git을 클러스터의 기준으로 삼는다. `kubectl`로 클러스터를 직�
 - 롤아웃이 멈춘 채로 `progressDeadlineSeconds`(기본 600초)를 넘기면 Argo CD가 `Degraded`가 되는지
 - finalizer를 붙였을 때 Application 삭제가 리소스까지 지우는지
 - `prune`이 앱 내부 리소스(예: `apps/podinfo`에서 파일을 지울 때)에도 같은 방식으로 도는지
-- 동기화 실패 진단
+- 동기화 실패 진단(`SyncFailed` 상태에서 원인을 찾는 흐름)
 - ApplicationSet
 - HPA가 `replicas`를 바꿔도 드리프트로 잡히지 않는 것은 이번 환경에서 관찰했지만, `ignoreDifferences` 없이도 항상 그런지는 확인하지 않았다
 - Argo CD UI, 초기 admin 시크릿 삭제 (CLI `--core`만 사용)
@@ -91,5 +91,5 @@ Git을 클러스터의 기준으로 삼는다. `kubectl`로 클러스터를 직�
 - [x] 드리프트 감지(수동 모드)와 self-heal
 - [x] 런타임에서 실패하는 변경을 PR로 병합했을 때의 동작과 `git revert` 롤백
 - [x] app-of-apps, Application 삭제 시 `prune` 확인
-- [ ] 동기화 실패 진단
-- [ ] ApplicationSet(선택)
+- [ ] 동기화 실패 진단 (하지 않음. 필요해지면 별도로)
+- [ ] ApplicationSet (하지 않음. 환경 분리를 다루는 로드맵 09번에서 Kustomize와 함께)
