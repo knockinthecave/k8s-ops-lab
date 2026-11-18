@@ -1,0 +1,24 @@
+# podinfo 관측용 CR(ServiceMonitor, PrometheusRule)을 Git에서 관리한다.
+# monitoring/ 폴더에는 helm values 파일도 섞여 있어서 include로 podinfo-*.yaml만 읽는다.
+# 리소스에 네임스페이스가 적혀 있으면 그대로 쓰고(PrometheusRule은 monitoring),
+# 없으면 destination.namespace(ServiceMonitor는 default)에 만든다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo-monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/knockinthecave/k8s-ops-lab.git
+    targetRevision: main
+    path: monitoring
+    directory:
+      include: "podinfo-*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
