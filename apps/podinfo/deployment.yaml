@@ -58,7 +58,7 @@ spec:
         # 컨테이너 이름
         - name: podinfo
           # 컨테이너 이미지 (태그 고정으로 재현 가능한 배포)
-          image: ghcr.io/stefanprodan/podinfo:6.17.0
+          image: ghcr.io/stefanprodan/podinfo:6.17.0-typo
           ports:
             # 포트에 이름을 부여 -> Service의 targetPort에서 "http"로 참조
             - name: http
