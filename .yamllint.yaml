@@ -1,0 +1,4 @@
+# yamllint 설정: 기본은 relaxed, 한글 주석이 많아 줄 길이 검사는 끈다.
+extends: relaxed
+rules:
+  line-length: disable
