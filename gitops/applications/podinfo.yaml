@@ -1,0 +1,24 @@
+# Argo CD Application: Git의 apps/podinfo 를 클러스터(default 네임스페이스)에 맞춘다.
+# 수동 sync로 동작을 확인한 뒤 자동 동기화를 켰다(실습 문서 07번 참고).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/knockinthecave/k8s-ops-lab.git
+    # 이 브랜치의 최신 커밋을 따라간다
+    targetRevision: main
+    path: apps/podinfo
+  destination:
+    # Argo CD가 설치된 클러스터 자신
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      # 클러스터를 kubectl로 직접 바꾸면 Git 상태로 되돌린다
+      selfHeal: true
+      # Git에서 지운 리소스는 클러스터에서도 지운다
+      prune: true
