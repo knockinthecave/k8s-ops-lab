@@ -14,6 +14,7 @@ cd "$(dirname "$0")/.."
 # helm values(*-values.yaml)와 kind 설정(cluster/kind.yaml)은 리소스가 아니라서 제외한다.
 K8S_TARGETS=(
   apps labs
+  gitops/root.yaml gitops/applications
   monitoring/podinfo-alerts.yaml
   monitoring/podinfo-servicemonitor.yaml
   monitoring/loki-datasource.yaml
