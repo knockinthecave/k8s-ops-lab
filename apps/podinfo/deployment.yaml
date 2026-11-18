@@ -126,7 +126,7 @@ spec:
           # - liveness와 다른 경로(/readyz)를 봄: 한쪽만 실패하는 상황을 구분하기 위함
           readinessProbe:
             httpGet:
-              path: /readyz-typo
+              path: /readyz
               port: http
             periodSeconds: 5
             timeoutSeconds: 2
