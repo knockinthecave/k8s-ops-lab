@@ -27,6 +27,9 @@
 │   └── ci-check.sh           # 매니페스트 검증 (yamllint, kubeconform, trivy). 로컬과 CI 공용
 ├── .github/workflows/
 │   └── ci.yaml               # PR과 main 푸시에서 ci-check.sh 실행
+├── gitops/
+│   ├── argocd-values.yaml    # Argo CD helm values
+│   └── applications/         # Argo CD Application (podinfo)
 ├── labs/
 │   ├── 02/                   # 실습용 매니페스트 (장애 재현용 파드)
 │   └── 05/                   # 실습용 매니페스트 (요청 측정 클라이언트, 부하 Job, 엄격한 PDB)
@@ -82,6 +85,7 @@ kind delete cluster
 | 04 | 알림 규칙과 로깅 (PrometheusRule, Loki, Alloy) | [docs/labs/04-alerting.md](docs/labs/04-alerting.md) |
 | 05 | 가용성 설계 (PDB, drain, 노드 분산, HPA) *진행 중: HPA 부하 실험과 자원 관리(Quota 등) 남음* | [docs/labs/05-availability.md](docs/labs/05-availability.md) |
 | 06 | CI 매니페스트 검증 (kubeconform, yamllint, Trivy) *Ruleset으로 머지 조건 강제* | [docs/labs/06-ci.md](docs/labs/06-ci.md) |
+| 07 | GitOps 기본: Argo CD *진행 중: Git 변경과 롤백 실험 남음* | [docs/labs/07-argocd.md](docs/labs/07-argocd.md) |
 
 ## 참고 문서
 
